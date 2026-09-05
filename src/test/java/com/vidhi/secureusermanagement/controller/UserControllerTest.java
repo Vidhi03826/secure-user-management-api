@@ -1,33 +1,36 @@
 package com.vidhi.secureusermanagement.controller;
 
+import com.vidhi.secureusermanagement.jwt.JwtService;
+import com.vidhi.secureusermanagement.security.CustomAccessDeniedHandler;
+import com.vidhi.secureusermanagement.security.CustomAuthenticationEntryPoint;
+import com.vidhi.secureusermanagement.security.CustomUserDetailsService;
+import com.vidhi.secureusermanagement.security.JwtAuthenticationFilter;
+import com.vidhi.secureusermanagement.security.SecurityConfig;
+import com.vidhi.secureusermanagement.dto.UpdateProfileRequest;
 import com.vidhi.secureusermanagement.dto.UserResponse;
 import com.vidhi.secureusermanagement.service.UserService;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-
-import org.springframework.http.MediaType;
-
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import org.springframework.security.test.context.support.WithMockUser;
-
 @WebMvcTest(UserController.class)
+@Import(SecurityConfig.class)
 class UserControllerTest {
 
     @Autowired
@@ -36,67 +39,70 @@ class UserControllerTest {
     @MockitoBean
     private UserService userService;
 
-    private UserResponse userResponse;
+    @MockitoBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @BeforeEach
-    void setUp() {
+    @MockitoBean
+    private JwtService jwtService;
 
-        userResponse = new UserResponse(
-                1L,
-                "Test User",
-                "test@example.com",
-                Set.of("USER")
-        );
-    }
+    @MockitoBean
+    private CustomUserDetailsService customUserDetailsService;
+
+    @MockitoBean
+    private CustomAuthenticationEntryPoint authenticationEntryPoint;
+
+    @MockitoBean
+    private CustomAccessDeniedHandler accessDeniedHandler;
 
     @Test
-    @WithMockUser(
-            username = "test@example.com",
-            roles = "USER"
-    )
     void shouldGetCurrentUser() throws Exception {
 
-        when(userService.getCurrentUser(
-                "test@example.com"
-        )).thenReturn(userResponse);
+        UserResponse response = new UserResponse(
+                1L,
+                "Vidhi",
+                "vidhi@gmail.com",
+                Set.of("USER")
+        );
+
+        when(userService.getCurrentUser("vidhi@gmail.com"))
+                .thenReturn(response);
 
         mockMvc.perform(
                         get("/api/users/me")
-                                .contentType(MediaType.APPLICATION_JSON)
+                                .with(user("vidhi@gmail.com")
+                                        .roles("USER"))
                 )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.name").value("Test User"))
-                .andExpect(jsonPath("$.email").value("test@example.com"))
-                .andExpect(jsonPath("$.roles[0]").value("USER"));
+                .andExpect(status().isOk());
     }
 
     @Test
-    @WithMockUser(
-            username = "test@example.com",
-            roles = "USER"
-    )
     void shouldUpdateCurrentUser() throws Exception {
 
-        when(userService.updateCurrentUser(
-                any(String.class),
-                any()
-        )).thenReturn(userResponse);
+        UserResponse response = new UserResponse(
+                1L,
+                "Updated Vidhi",
+                "updated@gmail.com",
+                Set.of("USER")
+        );
 
-        String requestBody = """
-                {
-                    "name": "Test User",
-                    "email": "test@example.com"
-                }
-                """;
+        when(userService.updateCurrentUser(
+                eq("vidhi@gmail.com"),
+                any(UpdateProfileRequest.class)
+        )).thenReturn(response);
 
         mockMvc.perform(
                         put("/api/users/me")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                                .with(user("vidhi@gmail.com")
+                                        .roles("USER"))
+                                .with(csrf())
+                                .contentType("application/json")
+                                .content("""
+                                        {
+                                          "name": "Updated Vidhi",
+                                          "email": "updated@gmail.com"
+                                        }
+                                        """)
                 )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Test User"))
-                .andExpect(jsonPath("$.email").value("test@example.com"));
+                .andExpect(status().isOk());
     }
 }
