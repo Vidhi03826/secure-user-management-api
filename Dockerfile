@@ -1,8 +1,17 @@
-FROM eclipse-temurin:21-jre
+FROM maven:3.9.6-eclipse-temurin-22 AS build
 
 WORKDIR /app
 
-COPY target/secure-user-management-*.jar app.jar
+COPY pom.xml .
+COPY src ./src
+
+RUN mvn -DskipTests package
+
+FROM eclipse-temurin:22-jre
+
+WORKDIR /app
+
+COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8080
 
